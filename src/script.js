@@ -22,9 +22,10 @@ let addedList = []
 const params = {
     mainColor: '#1e665a',
     background: '#5199db',
-    cameraPos: 8,
+    cameraPos: 20,
     cubeX: 0,
     fishGroupX: 0,
+    zPosition: -10,
     addRandomFish: () => {
         const url = fishUrlList[Math.floor(Math.random() * fishUrlList.length)];
         addFish(url)
@@ -52,8 +53,11 @@ gui.addColor(params, 'background').onChange((color) => {
     console.log(color)
     scene.background.set(color)
 })
-gui.add(params, 'cameraPos').min(0).max(15).step(0.01).onChange((val) => {
+gui.add(params, 'cameraPos').min(0).max(20).step(0.01).onChange((val) => {
     camera.position.z = val;
+})
+gui.add(params, 'zPosition').min(-50).max(0).step(0.01).onChange((val) => {
+    params.zPosition = val;
 })
 gui.add(params, 'addRandomFish').onFinishChange(() => {
     console.log('clicked here')
@@ -188,6 +192,7 @@ const sizes = {
     height: window.innerHeight
 }
 
+
 window.addEventListener('resize', () =>
 {
     // Update sizes
@@ -235,68 +240,85 @@ const cursor = {
 
 const randomZ = Math.random() * -20
 
+
+const plane = new THREE.Mesh(
+    new THREE.PlaneGeometry(80, 36, 2, 2),
+    new THREE.MeshStandardMaterial({
+        color: 'red', 
+        opacity: 0.5, 
+        transparent: true
+    })
+)
+plane.position.z = params.zPosition;
+// plane.rotation.x = Math.PI * -0.5;
+plane.visible = false
+scene.add(plane)
+
+const raycaster = new THREE.Raycaster();
+
+let intersectionPoint = null;
+
 window.addEventListener('mousemove', (event) => {
     // console.log(event.clientX, event.clientY)
-    cursor.x = ((event.clientX / sizes.width) * 2 - 1) * rangeParticles * 0.5;
-    cursor.y = (((event.clientY / sizes.height) * 2 - 1) * -1) * rangeParticles * 0.5;
+    cursor.x = ((event.clientX / sizes.width) * 2 - 1);
+    cursor.y = (((event.clientY / sizes.height) * 2 - 1) * -1) 
     // console.log(cursor.x, cursor.y)
 
-    if (fishesList.length > 0) {
-        fishesList.map((fish, index) => {
-            gsap.to(fish.model.position, {
-                // x: Math.sin(cursor.x) + cursor.x + 1.45 * index,
-                // y: cursor.y - 1.2 * index,
-                z: -10,
-                duration: 0.4,
-                onComplete: () => {
-                    fish.model.lookAt(new THREE.Vector3(cursor.x, cursor.y, camera.position.z - 3))
-                }
-            })
+    raycaster.setFromCamera(cursor, camera)
+
+    const intersects = raycaster.intersectObject(plane)
+
+    if (fishesList.length > 0 && intersects.length > 0 && plane) {
+        fishesList.map((fish) => {
+            fish.model.lookAt(new THREE.Vector3(intersects[0].point.x, intersects[0].point.y, params.zPosition))
         })
     }
-
 })
 
 canvas.addEventListener('click', (event) => {
-    cursor.x = ((event.clientX / sizes.width) * 2 - 1) * 22 ;
-    cursor.y = (((event.clientY / sizes.height) * 2 - 1) * -1) * rangeParticles * 0.5 ;
+    cursor.x = ((event.clientX / sizes.width) * 2 - 1);
+    cursor.y = (((event.clientY / sizes.height) * 2 - 1) * -1) 
 
     console.log(cursor)
-    console.log(fishesGroup)
+    // console.log(fishesGroup)
+
+    raycaster.setFromCamera(cursor, camera)
+
+    const intersects = raycaster.intersectObject(plane)
+    if (intersects) {
+        console.log('i hit the plane: ', intersects[0].point)
+        intersectionPoint = intersects[0].point
+    }
     
 
     if (fishesList.length > 0) {
-        gsap.to(fishesGroup.position, {
-            // x: Math.sin(cursor.x) + cursor.x + 1.45 * index,
-            // y: cursor.y - 1.2 * index,
-            // x: cursor.x + Math.sin(cursor.x) * index + 5,
-            // x: cursor.x,
-            // y: cursor.y,
-            // z: randomZ,
-            x: cursor.x,
-            y: cursor.y,
-            ease: 'sine.in',
-            duration: 1,
-            onComplete: () => {
-                // console.log(fish.model.position)
-                // fishesGroup.lookAt(new THREE.Vector3(cursor.x, cursor.y, camera.position.z - 3))
-            }
-        })
+        fishesList.forEach(fish => {
+            gsap.to(fish.model.position, {
+                x: intersectionPoint.x,
+                y: intersectionPoint.y,
+                ease: 'sine.inOut',
+                duration: 1.2,
+                onComplete: () => {
+                    randomPos()
+                }
+            })
+        });
     }
 })
+
+
 
 const randomPos = () => {
     if (fishesList.length > 0) {
         fishesList.map((fish, index) => {
             gsap.to(fish.model.position, {
-                x: Math.sin((Math.random() - 0.5) * 100) * 5,
-                y: Math.sin((Math.random() - 0.5) * 2) * 5,
+                x: fish.model.position.x + Math.sin((Math.random() - 0.5)) * fishesList.length,
+                y: fish.model.position.y + Math.sin((Math.random() - 0.5)) * fishesList.length,
                 z: -10,
                 duration: 0.4,
                 onComplete: () => {
-                    console.log(fish.model.position)
-                    fish.model.lookAt(new THREE.Vector3(cursor.x, cursor.y, camera.position.z - 3))
-
+                    // console.log(fish.model.position)
+                    // fish.model.lookAt(new THREE.Vector3(cursor.x, cursor.y, camera.position.z - 3))
                 }
             })
         })
@@ -309,6 +331,7 @@ const randomPos = () => {
 const clock = new THREE.Clock()
 let currentTime = 0;
 
+
 const tick = () =>
 {
     const elapsedTime = clock.getElapsedTime()
@@ -320,6 +343,20 @@ const tick = () =>
             fish.mixer.update(deltaTime)
         });
     }
+
+    if (fishesList.length > 0) {
+        fishesList.map((fish, index) => {
+            gsap.to(fish.model.position, {
+                z: params.zPosition,
+                delay: 1,
+                duration: 0.4,
+                onComplete: () => {
+                    // fish.model.lookAt(new THREE.Vector3(cursor.x, cursor.y, camera.position.z - 3))
+                }
+            })
+        })
+    }
+    // }
 
     // Update controls
     // controls.update()
