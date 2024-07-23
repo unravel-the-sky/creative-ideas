@@ -24,6 +24,7 @@ const params = {
     background: '#5199db',
     cameraPos: 8,
     cubeX: 0,
+    fishGroupX: 0,
     addRandomFish: () => {
         const url = fishUrlList[Math.floor(Math.random() * fishUrlList.length)];
         addFish(url)
@@ -60,8 +61,12 @@ gui.add(params, 'addRandomFish').onFinishChange(() => {
 gui.add(params, 'randomPos').onFinishChange(() => {
     console.log('clicked here')
 })
+gui.add(params, 'fishGroupX').min(-30).max(30).step(0.1).onChange(() => {
+    fishesGroup.position.x = params.fishGroupX
+})
 // gui.add(params, 'cubeX').min(-30).max(30).step(0.1).onChange(() => {
-//     cube.position.x = params.cubeX
+//     // cube.position.x = params.cubeX
+//     test.position.x = params.cubeX
 // })
 
 // Canvas
@@ -81,36 +86,7 @@ const texture = textureLoader.load('/textures/particles/8.png')
  * Load models
  */
 const fishesList = []
-// const addFishes = (strings = ['']) => {
-//     strings.forEach(url => {
-//         gltfLoader.load(url, 
-//             (glb) => {
-//                 console.log(glb)
-//                 const fish = {
-//                     model: glb.scene,
-//                     mixer: new THREE.AnimationMixer(glb.scene)
-//                 }
-//                 fishesList.push(fish)
-                
-//                 const action = fish.mixer.clipAction(glb.animations[5] ?? glb.animations[0])
-//                 action.play();
-
-//                 console.log(fish)
-        
-//                 fish.model.scale.setScalar(0.6 * Math.random() + 0.2)
-//                 fish.model.position.set((Math.random() - 0.5) * 100, (Math.random() - 0.5 ) * 2, -200)
-//                 scene.add(fish.model)
-//             }
-//         )
-//     });
-// }
-// addFish([
-//     '/models/nemo.glb',
-//     '/models/anglerFish.glb',
-//     '/models/blueFish.glb',
-//     '/models/puffer.glb',
-//     '/models/bigFish.glb',
-// ])
+const fishesGroup = new THREE.Group();
 
 const addFish = (url) => {
     gltfLoader.load(url, 
@@ -120,14 +96,17 @@ const addFish = (url) => {
                 mixer: new THREE.AnimationMixer(glb.scene)
             }
             fishesList.push(fish)
+            fishesGroup.add(fish.model)
+
+            fishesGroup.updateWorldMatrix();
             
             const action = fish.mixer.clipAction(glb.animations[5] ?? glb.animations[0])
             action.play();
     
             fish.model.scale.setScalar(0.6 * Math.random() + 0.2)
             console.log((Math.random() - 0.5) * 100, (Math.random() - 0.5) * 2)
-            fish.model.position.set(Math.sin((Math.random() - 0.5) * 100) * 5, Math.sin((Math.random() - 0.5) * 2) * 5, -200)
-            scene.add(fish.model)
+            fish.model.position.set(Math.sin((Math.random() - 0.5) * 100) * fishesGroup.children.length, Math.sin((Math.random() - 0.5) * 2) * 5, -200)
+            scene.add(fishesGroup)
         }
     )
 }
@@ -141,8 +120,18 @@ const cube = new THREE.Mesh(
     material
 )
 cube.position.set(0, 0, -10)
-cube.visible = false;
-scene.add(cube)
+
+const cube2 = new THREE.Mesh(
+    new THREE.BoxGeometry(1, 2, 1),
+    material
+)
+cube2.position.set(-2, 4, -3)
+
+// cube.visible = false;
+const test = new THREE.Group()
+test.add(cube, cube2)
+// scene.add(test)
+// scene.add(cube)
 
 const torus = new THREE.Mesh(
     new THREE.TorusGeometry(0.9),
@@ -273,23 +262,25 @@ canvas.addEventListener('click', (event) => {
     cursor.y = (((event.clientY / sizes.height) * 2 - 1) * -1) * rangeParticles * 0.5 ;
 
     console.log(cursor)
+    console.log(fishesGroup)
+    
 
     if (fishesList.length > 0) {
-        fishesList.map((fish, index) => {
-            gsap.to(fish.model.position, {
-                // x: Math.sin(cursor.x) + cursor.x + 1.45 * index,
-                // y: cursor.y - 1.2 * index,
-                x: cursor.x + Math.sin(cursor.x) * index + 5,
-                // x: cursor.x,
-                y: cursor.y,
-                // z: randomZ,
-                duration: 0.4,
-                onComplete: () => {
-                    console.log(fish.model.position)
-                    fish.model.lookAt(new THREE.Vector3(cursor.x, cursor.y, camera.position.z - 3))
-
-                }
-            })
+        gsap.to(fishesGroup.position, {
+            // x: Math.sin(cursor.x) + cursor.x + 1.45 * index,
+            // y: cursor.y - 1.2 * index,
+            // x: cursor.x + Math.sin(cursor.x) * index + 5,
+            // x: cursor.x,
+            // y: cursor.y,
+            // z: randomZ,
+            x: cursor.x,
+            y: cursor.y,
+            ease: 'sine.in',
+            duration: 1,
+            onComplete: () => {
+                // console.log(fish.model.position)
+                // fishesGroup.lookAt(new THREE.Vector3(cursor.x, cursor.y, camera.position.z - 3))
+            }
         })
     }
 })
