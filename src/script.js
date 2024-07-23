@@ -6,14 +6,30 @@ import {GLTFLoader} from 'three/examples/jsm/loaders/GLTFLoader.js'
 
 const gltfLoader = new GLTFLoader();
 
+const fishUrlList = [
+    '/models/nemo.glb',
+    '/models/anglerFish.glb',
+    '/models/blueFish.glb',
+    '/models/puffer.glb',
+    '/models/bigFish.glb',
+]
+
+let addedList = []
+
 /**
  * Base
  */
 const params = {
     mainColor: '#1e665a',
     background: '#5199db',
-    cameraPos: 8
+    cameraPos: 8,
+    addRandomFish: () => {
+        const url = fishUrlList[Math.floor(Math.random() * fishUrlList.length)];
+        addFish(url)
+    }
 };
+
+
 
 const material = new THREE.MeshStandardMaterial(
     {
@@ -34,6 +50,9 @@ gui.addColor(params, 'background').onChange((color) => {
 gui.add(params, 'cameraPos').min(0).max(15).step(0.01).onChange((val) => {
     camera.position.z = val;
 })
+gui.add(params, 'addRandomFish').onFinishChange(() => {
+    console.log('clicked here')
+})
 
 // Canvas
 const canvas = document.querySelector('canvas.webgl')
@@ -51,43 +70,61 @@ const texture = textureLoader.load('/textures/particles/8.png')
 /**
  * Load models
  */
-let nemoFish = null
-let nemoMixer = null
-const model = gltfLoader.load('models/nemo.glb', 
-    (glb) => {
-        console.log(glb)
-        nemoFish = glb.scene;
+const fishesList = []
+// const addFishes = (strings = ['']) => {
+//     strings.forEach(url => {
+//         gltfLoader.load(url, 
+//             (glb) => {
+//                 console.log(glb)
+//                 const fish = {
+//                     model: glb.scene,
+//                     mixer: new THREE.AnimationMixer(glb.scene)
+//                 }
+//                 fishesList.push(fish)
+                
+//                 const action = fish.mixer.clipAction(glb.animations[5] ?? glb.animations[0])
+//                 action.play();
+
+//                 console.log(fish)
         
-        nemoMixer = new THREE.AnimationMixer(glb.scene);
-        const action = nemoMixer.clipAction(glb.animations[0])
-        console.log(action)
+//                 fish.model.scale.setScalar(0.6 * Math.random() + 0.2)
+//                 fish.model.position.set((Math.random() - 0.5) * 100, (Math.random() - 0.5 ) * 2, -200)
+//                 scene.add(fish.model)
+//             }
+//         )
+//     });
+// }
+// addFish([
+//     '/models/nemo.glb',
+//     '/models/anglerFish.glb',
+//     '/models/blueFish.glb',
+//     '/models/puffer.glb',
+//     '/models/bigFish.glb',
+// ])
 
-        action.play();
+const addFish = (url) => {
+    gltfLoader.load(url, 
+        (glb) => {
+            console.log(glb)
+            const fish = {
+                model: glb.scene,
+                mixer: new THREE.AnimationMixer(glb.scene)
+            }
+            fishesList.push(fish)
+            
+            const action = fish.mixer.clipAction(glb.animations[5] ?? glb.animations[0])
+            action.play();
 
-        glb.scene.scale.setScalar(0.3)
-        glb.scene.position.set(0, 0, -100)
-        scene.add(glb.scene)
-    }
-)
-
-let bigFish = null
-let bigFishMixer = null
-const bigFishModel = gltfLoader.load('models/bigFish.glb', 
-    (glb) => {
-        console.log(glb)
-        bigFish = glb.scene;
-        
-        bigFishMixer = new THREE.AnimationMixer(glb.scene);
-        const action = bigFishMixer.clipAction(glb.animations[0])
-        console.log(action)
-
-        action.play();
-
-        glb.scene.scale.setScalar(0.4)
-        glb.scene.position.set(0, 0, -200)
-        scene.add(glb.scene)
-    }
-)
+            console.log(fish)
+    
+            fish.model.scale.setScalar(0.6 * Math.random() + 0.2)
+            console.log((Math.random() - 0.5) * 100, (Math.random() - 0.5) * 2)
+            fish.model.position.set(Math.sin((Math.random() - 0.5) * 100) * 5, Math.sin((Math.random() - 0.5) * 2) * 5, -200)
+            scene.add(fish.model)
+        }
+    )
+}
+addFish(fishUrlList[0])
 
 /**
  * Test cube
@@ -178,8 +215,8 @@ camera.position.z = params.cameraPos
 scene.add(camera)
 
 // Controls
-const controls = new OrbitControls(camera, canvas)
-controls.enableDamping = true
+// const controls = new OrbitControls(camera, canvas)
+// controls.enableDamping = true
 // controls.
 
 /**
@@ -199,6 +236,8 @@ const cursor = {
     y: 0
 }
 
+const randomZ = (Math.random() - 0.5) * 4
+
 window.addEventListener('mousemove', (event) => {
     // console.log(event.clientX, event.clientY)
     cursor.x = ((event.clientX / sizes.width) * 2 - 1) * rangeParticles * 0.5;
@@ -206,45 +245,21 @@ window.addEventListener('mousemove', (event) => {
     // console.log(cursor.x, cursor.y)
 
     console.log('move object to cursor..')
-    gsap.to(cube.position, {
-        x: cursor.x,
-        y: cursor.y,
-        z: 0,
-        duration: 1,
-        // delay: 0.5,
-        // ease: 'power2.inOut',
-        ease: 'back.out',
-        onComplete: () => {
-            cube.lookAt(camera.position)
-            // cube.lookAt(new THREE.Vector3(cursor.x, cursor.y, 0))
-        }
-    })
-    if (nemoFish) {
-        gsap.to(nemoFish.position, {
-            x: Math.sin(cursor.x) + cursor.x,
-            y: cursor.y - 1.2,
-            z: 0,
-            duration: 0.4,
-            // delay: 0.5,
-            // ease: 'power2.inOut'
-            onComplete: () => {
-                nemoFish.lookAt(new THREE.Vector3(cursor.x, cursor.y, camera.position.z - 5))
-            }
+
+    if (fishesList.length > 0) {
+        fishesList.map((fish, index) => {
+            gsap.to(fish.model.position, {
+                x: Math.sin(cursor.x) + cursor.x + 1.45 * index,
+                y: cursor.y - 1.2 * index,
+                z: randomZ,
+                duration: 0.4,
+                onComplete: () => {
+                    fish.model.lookAt(new THREE.Vector3(cursor.x, cursor.y, camera.position.z - 3))
+                }
+            })
         })
     }
-    if (bigFish) {
-        gsap.to(bigFish.position, {
-            x: Math.sin(cursor.x) + cursor.x,
-            y: cursor.y,
-            z: -4,
-            duration: 0.4,
-            // delay: 0.5,
-            // ease: 'power2.inOut'
-            onComplete: () => {
-                bigFish.lookAt(new THREE.Vector3(cursor.x, cursor.y, camera.position.z - 5))
-            }
-        })
-    }
+
 })
 
 /**
@@ -266,12 +281,18 @@ const tick = () =>
     //     // console.log(Math.sin(elapsedTime))
     // }
 
-    if (nemoMixer) {
-        nemoMixer.update(deltaTime)
-    }
+    // if (nemoMixer) {
+    //     nemoMixer.update(deltaTime)
+    // }
 
-    if (bigFishMixer) {
-        bigFishMixer.update(deltaTime)
+    // if (bigFishMixer) {
+    //     bigFishMixer.update(deltaTime)
+    // }
+
+    if (fishesList.length > 0) {
+        fishesList.forEach(fish => {
+            fish.mixer.update(deltaTime)
+        });
     }
 
     // Update controls
