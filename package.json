@@ -8,6 +8,7 @@
     "build": "vite build"
   },
   "devDependencies": {
+    "gsap": "^3.12.5",
     "vite": "^5.3.3",
     "vite-plugin-restart": "^0.4.1"
   },
