@@ -45,10 +45,10 @@ const material = new THREE.MeshStandardMaterial(
 
 // Debug
 const gui = new GUI()
-gui.addColor(params, 'mainColor').onChange((color) => { 
-    console.log(color)
-    material.color.set(color)
-})
+// gui.addColor(params, 'mainColor').onChange((color) => { 
+//     console.log(color)
+//     material.color.set(color)
+// })
 gui.addColor(params, 'background').onChange((color) => { 
     console.log(color)
     scene.background.set(color)
@@ -212,7 +212,7 @@ window.addEventListener('resize', () =>
  * Camera
  */
 // Base camera
-const camera = new THREE.PerspectiveCamera(65, sizes.width / sizes.height, 0.1, 100)
+const camera = new THREE.PerspectiveCamera(45, sizes.width / sizes.height, 0.1, 100)
 camera.position.z = params.cameraPos
 scene.add(camera)
 
@@ -232,6 +232,8 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
 
 
 // scene.add(new THREE.AxesHelper(2))
+const gridHelper = new THREE.GridHelper(40, 10);
+// scene.add(gridHelper)
 
 const cursor = {
     x: 0,
@@ -249,7 +251,7 @@ const plane = new THREE.Mesh(
         transparent: true
     })
 )
-plane.position.z = params.zPosition;
+plane.position.z = 0;
 // plane.rotation.x = Math.PI * -0.5;
 plane.visible = false
 scene.add(plane)
@@ -270,7 +272,7 @@ window.addEventListener('mousemove', (event) => {
 
     if (fishesList.length > 0 && intersects.length > 0 && plane) {
         fishesList.map((fish) => {
-            fish.model.lookAt(new THREE.Vector3(intersects[0].point.x, intersects[0].point.y, params.zPosition))
+            fish.model.lookAt(new THREE.Vector3(intersects[0].point.x, intersects[0].point.y, plane.position.z))
         })
     }
 })
