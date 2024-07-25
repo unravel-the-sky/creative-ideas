@@ -3,6 +3,8 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import GUI from 'lil-gui';
 import gsap from 'gsap'
 import {GLTFLoader} from 'three/examples/jsm/loaders/GLTFLoader.js'
+import * as CANNON from 'cannon-es'
+import CannonDebugger from 'cannon-es-debugger';
 
 const gltfLoader = new GLTFLoader();
 
@@ -15,6 +17,18 @@ const fishUrlList = [
 ]
 
 let addedList = []
+
+/**
+ * Physicssss
+ */
+const world = new CANNON.World();
+world.broadphase = new CANNON.SAPBroadphase(world)
+world.allowSleep = true;
+world.gravity.set(0, 0, 0)
+
+const defaultMaterial = new CANNON.Material('concrete');
+defaultMaterial.friction = 10;
+defaultMaterial.restitution = 0.9;
 
 /**
  * Base
@@ -39,7 +53,9 @@ const params = {
 
 const material = new THREE.MeshStandardMaterial(
     {
-        color: params.mainColor
+        color: params.mainColor,
+        transparent: true,
+        opacity: 0.5
     }
 )
 
@@ -53,7 +69,7 @@ gui.addColor(params, 'background').onChange((color) => {
     console.log(color)
     scene.background.set(color)
 })
-gui.add(params, 'cameraPos').min(0).max(20).step(0.01).onChange((val) => {
+gui.add(params, 'cameraPos').min(0).max(200).step(0.01).onChange((val) => {
     camera.position.z = val;
 })
 gui.add(params, 'zPosition').min(-50).max(0).step(0.01).onChange((val) => {
@@ -92,13 +108,23 @@ const texture = textureLoader.load('/textures/particles/8.png')
 const fishesList = []
 const fishesGroup = new THREE.Group();
 
+let boundingBox = null;
+
 const addFish = (url) => {
     gltfLoader.load(url, 
         (glb) => {
             const fish = {
                 model: glb.scene,
-                mixer: new THREE.AnimationMixer(glb.scene)
+                mixer: new THREE.AnimationMixer(glb.scene),
+                boundingBox: null,
+                body: null
             }
+            console.log('calculating fish sin bounding box')
+            fish.model.updateMatrixWorld(true)
+
+
+            console.log('measures: ', cube.geometry.width, cube.geometry.height)
+
             fishesList.push(fish)
             fishesGroup.add(fish.model)
 
@@ -108,9 +134,42 @@ const addFish = (url) => {
             action.play();
     
             fish.model.scale.setScalar(0.6 * Math.random() + 0.2)
-            console.log((Math.random() - 0.5) * 100, (Math.random() - 0.5) * 2)
-            fish.model.position.set(Math.sin((Math.random() - 0.5) * 100) * fishesGroup.children.length, Math.sin((Math.random() - 0.5) * 2) * 5, -200)
+
+            const posX = Math.sin((Math.random() - 0.5) * 100) * fishesGroup.children.length;
+            const posY = Math.sin((Math.random() - 0.5) * 2) * 5;
+            fish.model.position.set(posX, posY, -10)
+
+            const box = new THREE.Box3().setFromObject(fish.model);
+            const size = box.getSize(new THREE.Vector3()).length();
+            const dims = box.getSize(new THREE.Vector3())
+            const center = box.getCenter(new THREE.Vector3());
+            console.log(size, center)
+            // cube.scale.setScalar(size);
+
+            const bbCube = new THREE.Mesh(
+                new THREE.BoxGeometry(1, 1, 1),
+                material
+            )
+            bbCube.position.set(0, 0, -10)
+            bbCube.scale.set(size, size, size)
+            bbCube.position.set(center.x, center.y, -10);
+            bbCube.visible = false
+
+            fish.boundingBox = bbCube;
+
+            fish.model.position.set(posX, posY, -200)
             scene.add(fishesGroup)
+
+            // create physics rigid body here
+            const body = new CANNON.Body({
+                mass: 1,
+                position: new CANNON.Vec3(bbCube.position.x, bbCube.position.y, bbCube.position.z),
+                shape: new CANNON.Box(new CANNON.Vec3(size*0.5, size*0.5, size*0.5)),
+                material: defaultMaterial
+            })
+            fish.body = body;
+            world.addBody(body);
+            scene.add(bbCube)
         }
     )
 }
@@ -120,17 +179,17 @@ addFish(fishUrlList[0])
  * Test cube
  */
 const cube = new THREE.Mesh(
-    new THREE.BoxGeometry(1, 2, 1),
+    new THREE.BoxGeometry(1, 1, 1),
     material
 )
 cube.position.set(0, 0, -10)
+// cube.geometry.computeBoundingBox()
 
 const cube2 = new THREE.Mesh(
     new THREE.BoxGeometry(1, 2, 1),
     material
 )
 cube2.position.set(-2, 4, -3)
-
 // cube.visible = false;
 const test = new THREE.Group()
 test.add(cube, cube2)
@@ -242,7 +301,6 @@ const cursor = {
 
 const randomZ = Math.random() * -20
 
-
 const plane = new THREE.Mesh(
     new THREE.PlaneGeometry(80, 36, 2, 2),
     new THREE.MeshStandardMaterial({
@@ -255,6 +313,18 @@ plane.position.z = 0;
 // plane.rotation.x = Math.PI * -0.5;
 plane.visible = false
 scene.add(plane)
+
+const floorShape = new CANNON.Plane();
+const floorBody = new CANNON.Body({
+    mass: 0,
+    position: new CANNON.Vec3(0, -10, 0)
+})
+floorBody.addShape(floorShape);
+floorBody.quaternion.setFromAxisAngle(
+    new CANNON.Vec3(-1, 0, 0),
+    Math.PI * 0.5
+)
+// world.addBody(floorBody)
 
 const raycaster = new THREE.Raycaster();
 
@@ -277,12 +347,37 @@ window.addEventListener('mousemove', (event) => {
     }
 })
 
+const forceIntensity = 50;
+const maxVel = 1;
+const moveBodyToTarget = (body, targetPos) => {
+    // Compute direction to target
+    // var direction = new CANNON.Vec3();
+    const direction = targetPos.vsub(body.position);
+    // direction.z = 0;
+    const distance = direction.length();
+
+    // console.log(distance)
+
+    if (distance > 0.1) {
+        direction.normalize();
+        // const force = direction.(forceIntensity,body.velocity);
+        body.velocity.set(Math.min(maxVel, body.velocity.x),Math.min(maxVel, body.velocity.y),Math.min(maxVel, body.velocity.z))
+        body.angularVelocity.set(Math.min(maxVel, body.velocity.x),Math.min(maxVel, body.velocity.y),Math.min(maxVel, body.velocity.z))
+        const force = direction.scale(forceIntensity);
+        body.applyForce(force, body.position)
+    } else {
+        body.velocity.set(0, 0, 0)
+        body.angularVelocity.set(0, 0, 0)
+    }
+}
+
 canvas.addEventListener('click', (event) => {
     cursor.x = ((event.clientX / sizes.width) * 2 - 1);
     cursor.y = (((event.clientY / sizes.height) * 2 - 1) * -1) 
 
     console.log(cursor)
     // console.log(fishesGroup)
+
 
     raycaster.setFromCamera(cursor, camera)
 
@@ -294,17 +389,22 @@ canvas.addEventListener('click', (event) => {
     
 
     if (fishesList.length > 0) {
-        fishesList.forEach(fish => {
-            gsap.to(fish.model.position, {
-                x: intersectionPoint.x,
-                y: intersectionPoint.y,
-                ease: 'sine.inOut',
-                duration: 1.2,
-                onComplete: () => {
-                    randomPos()
-                }
-            })
-        });
+        // console.log('applying impulse towards: ', new CANNON.Vec3(intersectionPoint.x, intersectionPoint.y, intersectionPoint.z), ' origin: ', new CANNON.Vec3(fish.model.position))
+        // fishesList.forEach(fish => {
+        //     // moveBodyToTarget(fish.body, new CANNON.Vec3(intersectionPoint.x, intersectionPoint.y, intersectionPoint.z))
+        //     // fish.body.applyImpulse(-new CANNON.Vec43(intersectionPoint.x, intersectionPoint.y, intersectionPoint.z), new CANNON.Vec3(fish.model.position))
+        //     // console.log('moved body: ', fish.body.position)
+
+        //     // gsap.to(fish.model.position, {
+        //     //     x: intersectionPoint.x,
+        //     //     y: intersectionPoint.y,
+        //     //     ease: 'sine.inOut',
+        //     //     duration: 1.2,
+        //     //     onComplete: () => {
+        //     //         randomPos()
+        //     //     }
+        //     // })
+        // });
     }
 })
 
@@ -340,9 +440,27 @@ const tick = () =>
     const deltaTime = elapsedTime - currentTime;
     currentTime = elapsedTime;
 
+
+    // world.step(1/60, deltaTime, 3);
+    world.fixedStep()
+
     if (fishesList.length > 0) {
         fishesList.forEach(fish => {
             fish.mixer.update(deltaTime)
+        });
+    }
+
+    if (intersectionPoint && fishesList.length > 0) {
+        fishesList.forEach(fish => {
+            moveBodyToTarget(fish.body, new CANNON.Vec3(intersectionPoint.x, intersectionPoint.y, intersectionPoint.z))
+        });
+    }
+
+    if (fishesList.length > 0) {
+        fishesList.forEach(fish => {
+            fish.model.position.copy(fish.body.position)
+            // console.log('moved body: ', fish.body.position)
+            // fish.model.quaternion.copy(fish.body.quaternion)
         });
     }
 
@@ -356,6 +474,7 @@ const tick = () =>
                     // fish.model.lookAt(new THREE.Vector3(cursor.x, cursor.y, camera.position.z - 3))
                 }
             })
+            fish.boundingBox.position.set(fish.model.position.x, fish.model.position.y, params.zPosition)
         })
     }
     // }
@@ -371,3 +490,5 @@ const tick = () =>
 }
 
 tick()
+
+const cannonDebugger = new CannonDebugger(scene, world, { color: 0xff0000})

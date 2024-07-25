@@ -8,6 +8,8 @@
     "build": "vite build"
   },
   "devDependencies": {
+    "cannon-es": "^0.20.0",
+    "cannon-es-debugger": "^1.0.0",
     "gsap": "^3.12.5",
     "vite": "^5.3.3",
     "vite-plugin-restart": "^0.4.1"
