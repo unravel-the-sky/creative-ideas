@@ -52,7 +52,8 @@ const params = {
         randomPos()
     },
     forceIntensity: 80,
-    maxVelocity: 0.6,
+    maxVelocity: 2,
+    showBoundingBoxes: false
 };
 
 
@@ -72,7 +73,6 @@ const gui = new GUI()
 //     material.color.set(color)
 // })
 gui.addColor(params, 'background').onChange((color) => { 
-    console.log(color)
     scene.background.set(color)
 })
 gui.add(params, 'cameraPos').min(0).max(200).step(0.01).onChange((val) => {
@@ -113,6 +113,12 @@ gui.add(scene, 'environmentIntensity').min(0).max(20).step(0.001)
 gui.add(scene, 'backgroundBlurriness').min(0).max(1).step(0.001)
 gui.add(scene, 'backgroundIntensity').min(0).max(10).step(0.001)
 
+gui.add(params, 'showBoundingBoxes').onChange(() => {
+    fishesList.forEach(fish => {
+        fish.boundingBox.visible = params.showBoundingBoxes
+    });
+})
+
 gui.add(params, 'addRandomFish').onFinishChange(() => {
     console.log('clicked here')
 })
@@ -145,23 +151,20 @@ const addFish = (url) => {
                 model: glb.scene,
                 mixer: new THREE.AnimationMixer(glb.scene),
                 boundingBox: null,
-                body: null
+                body: null,
+                movingToTarget: false
             }
             console.log('calculating fish sin bounding box')
             fish.model.updateMatrixWorld(true)
-
-
-            console.log('measures: ', cube.geometry.width, cube.geometry.height)
-
+            fish.model.name = `fish_${fishesList.length}`
+            
             fishesList.push(fish)
             fishesGroup.add(fish.model)
-
-            fishesGroup.updateWorldMatrix();
             
             const action = fish.mixer.clipAction(glb.animations[5] ?? glb.animations[0])
             action.play();
     
-            fish.model.scale.setScalar(0.6 * Math.random() + 0.2)
+            fish.model.scale.setScalar(Math.min(Math.random() + 0.2, 0.6))
 
             const posX = Math.sin((Math.random() - 0.5) * 100) * fishesGroup.children.length;
             const posY = Math.sin((Math.random() - 0.5) * 2) * 5;
@@ -169,24 +172,23 @@ const addFish = (url) => {
 
             const box = new THREE.Box3().setFromObject(fish.model);
             const size = box.getSize(new THREE.Vector3()).length();
-            const dims = box.getSize(new THREE.Vector3())
             const center = box.getCenter(new THREE.Vector3());
-            console.log(size, center)
             // cube.scale.setScalar(size);
 
             const bbCube = new THREE.Mesh(
                 new THREE.BoxGeometry(1, 1, 1),
                 material
             )
-            bbCube.position.set(0, 0, -10)
             bbCube.scale.set(size, size, size)
             bbCube.position.set(center.x, center.y, -10);
-            bbCube.visible = false
+            bbCube.visible = params.showBoundingBoxes
+            bbCube.name = `fish_${fishesList.length-1}`
 
             fish.boundingBox = bbCube;
 
+
             fish.model.position.set(posX, posY, -200)
-            scene.add(fishesGroup)
+            scene.add(fish.model)
 
             // create physics rigid body here
             const body = new CANNON.Body({
@@ -306,7 +308,6 @@ scene.add(camera)
 // Controls
 // const controls = new OrbitControls(camera, canvas)
 // controls.enableDamping = true
-// controls.
 
 /**
  * Renderer
@@ -326,8 +327,6 @@ const cursor = {
     x: 0,
     y: 0
 }
-
-const randomZ = Math.random() * -20
 
 const plane = new THREE.Mesh(
     new THREE.PlaneGeometry(80, 36, 2, 2),
@@ -352,108 +351,81 @@ floorBody.quaternion.setFromAxisAngle(
     new CANNON.Vec3(-1, 0, 0),
     Math.PI * 0.5
 )
-// world.addBody(floorBody)
+world.addBody(floorBody)
 
 const raycaster = new THREE.Raycaster();
 
 let intersectionPoint = null;
 
-window.addEventListener('mousemove', (event) => {
-    // console.log(event.clientX, event.clientY)
+const moveBodyToTarget = (fish, targetPos) => {
+    // Compute direction to target
+    let {body, movingToTarget} = fish
+    const direction = targetPos.vsub(body.position);
+    // direction.z = 0;
+    const distance = direction.length();
+
+    const calculateMaxVel = (velocity) => {
+        const maxVel = distance < 5 ? 2 : params.maxVelocity
+        return velocity > 0 ? Math.min(maxVel, velocity) : Math.max(-maxVel, velocity)
+    }
+
+    // console.log(distance)
+    movingToTarget = true;
+    const threshold = Math.min(fishesList.length * 0.5, 3);
+
+    if (distance > threshold && movingToTarget === true) {
+        
+        direction.normalize();
+
+        const velX = calculateMaxVel(body.velocity.x)
+        const velY = calculateMaxVel(body.velocity.y)
+        const velZ = calculateMaxVel(body.velocity.z)
+        
+        body.velocity.set(velX, velY, velZ)
+        body.angularVelocity.set(velX, velY, velZ);
+        const force = direction.scale(params.forceIntensity);
+        body.applyForce(force, body.position)
+    } else {
+        body.velocity.set(0, 0, 0)
+        body.angularVelocity.set(0, 0, 0)
+        movingToTarget = false;
+    }
+}
+
+canvas.addEventListener('mousemove', (event) => {
     cursor.x = ((event.clientX / sizes.width) * 2 - 1);
-    cursor.y = (((event.clientY / sizes.height) * 2 - 1) * -1) 
-    // console.log(cursor.x, cursor.y)
+    cursor.y = (((event.clientY / (sizes.height - window.scrollY)) * 2 - 1) * -1) 
 
     raycaster.setFromCamera(cursor, camera)
 
     const intersects = raycaster.intersectObject(plane)
-
+ 
     if (fishesList.length > 0 && intersects.length > 0 && plane) {
+        intersectionPoint = intersects[0].point
         fishesList.map((fish) => {
             fish.model.lookAt(new THREE.Vector3(intersects[0].point.x, intersects[0].point.y, plane.position.z))
         })
     }
 })
 
-const moveBodyToTarget = (body, targetPos) => {
-    // Compute direction to target
-    // var direction = new CANNON.Vec3();
-    const direction = targetPos.vsub(body.position);
-    // direction.z = 0;
-    const distance = direction.length();
-
-    // console.log(distance)
-
-    if (distance > 0.1) {
-        let maxVel = distance < 5 ? 2 : params.maxVelocity
-        direction.normalize();
-        // const force = direction.(forceIntensity,body.velocity);
-        
-        body.velocity.set(Math.min(maxVel, body.velocity.x),Math.min(maxVel, body.velocity.y),Math.min(maxVel, body.velocity.z))
-        body.angularVelocity.set(Math.min(maxVel, body.velocity.x),Math.min(maxVel, body.velocity.y),Math.min(maxVel, body.velocity.z))
-        const force = direction.scale(params.forceIntensity);
-        body.applyForce(force, body.position)
-    } else {
-        body.velocity.set(0, 0, 0)
-        body.angularVelocity.set(0, 0, 0)
-    }
-}
-
-canvas.addEventListener('mousemove', (event) => {
+canvas.addEventListener('click', (event) => {
     cursor.x = ((event.clientX / sizes.width) * 2 - 1);
     cursor.y = (((event.clientY / sizes.height) * 2 - 1) * -1) 
 
-    console.log(cursor)
-    // console.log(fishesGroup)
-
-
     raycaster.setFromCamera(cursor, camera)
 
-    const intersects = raycaster.intersectObject(plane)
-    if (intersects) {
-        console.log('i hit the plane: ', intersects[0].point)
-        intersectionPoint = intersects[0].point
+    const fishes = fishesList.map(fish => fish.boundingBox);
+    const intersectFish = raycaster.intersectObjects(fishes)
+    if (intersectFish.length) {
+        console.log('here is the first fish that i got: ', intersectFish[0])
+
+        // maybe remove clicked fish but maybe not
+        // const firstHit = intersectFish[0];
+        // const name = firstHit.object.name;
+        // scene.remove(scene.children.find(item => item.name === name))
     }
     
-
-    if (fishesList.length > 0) {
-        // console.log('applying impulse towards: ', new CANNON.Vec3(intersectionPoint.x, intersectionPoint.y, intersectionPoint.z), ' origin: ', new CANNON.Vec3(fish.model.position))
-        // fishesList.forEach(fish => {
-        //     // moveBodyToTarget(fish.body, new CANNON.Vec3(intersectionPoint.x, intersectionPoint.y, intersectionPoint.z))
-        //     // fish.body.applyImpulse(-new CANNON.Vec43(intersectionPoint.x, intersectionPoint.y, intersectionPoint.z), new CANNON.Vec3(fish.model.position))
-        //     // console.log('moved body: ', fish.body.position)
-
-        //     // gsap.to(fish.model.position, {
-        //     //     x: intersectionPoint.x,
-        //     //     y: intersectionPoint.y,
-        //     //     ease: 'sine.inOut',
-        //     //     duration: 1.2,
-        //     //     onComplete: () => {
-        //     //         randomPos()
-        //     //     }
-        //     // })
-        // });
-    }
 })
-
-
-
-const randomPos = () => {
-    if (fishesList.length > 0) {
-        fishesList.map((fish, index) => {
-            gsap.to(fish.model.position, {
-                x: fish.model.position.x + Math.sin((Math.random() - 0.5)) * fishesList.length,
-                y: fish.model.position.y + Math.sin((Math.random() - 0.5)) * fishesList.length,
-                z: -10,
-                duration: 0.4,
-                onComplete: () => {
-                    // console.log(fish.model.position)
-                    // fish.model.lookAt(new THREE.Vector3(cursor.x, cursor.y, camera.position.z - 3))
-                }
-            })
-        })
-    }
-}
 
 /**
  * Animate
@@ -475,40 +447,20 @@ const tick = () =>
     scene.environmentRotation.y += deltaTime
     scene.backgroundRotation.y += deltaTime * 0.01
 
+    if (intersectionPoint && fishesList.length > 0) {
+        fishesList.forEach(fish => {
+            moveBodyToTarget(fish, new CANNON.Vec3(intersectionPoint.x, intersectionPoint.y, intersectionPoint.z))
+        });
+    }
+
     if (fishesList.length > 0) {
         fishesList.forEach(fish => {
             fish.mixer.update(deltaTime)
-        });
-    }
-
-    if (intersectionPoint && fishesList.length > 0) {
-        fishesList.forEach(fish => {
-            moveBodyToTarget(fish.body, new CANNON.Vec3(intersectionPoint.x, intersectionPoint.y, intersectionPoint.z))
-        });
-    }
-
-    if (fishesList.length > 0) {
-        fishesList.forEach(fish => {
             fish.model.position.copy(fish.body.position)
-            // console.log('moved body: ', fish.body.position)
+            fish.boundingBox.position.copy(fish.body.position)
             // fish.model.quaternion.copy(fish.body.quaternion)
         });
     }
-
-    if (fishesList.length > 0) {
-        fishesList.map((fish, index) => {
-            gsap.to(fish.model.position, {
-                z: params.zPosition,
-                delay: 1,
-                duration: 0.4,
-                onComplete: () => {
-                    // fish.model.lookAt(new THREE.Vector3(cursor.x, cursor.y, camera.position.z - 3))
-                }
-            })
-            fish.boundingBox.position.set(fish.model.position.x, fish.model.position.y, params.zPosition)
-        })
-    }
-    // }
 
     // Update controls
     // controls.update()

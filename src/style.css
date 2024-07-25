@@ -7,14 +7,15 @@
 html,
 body
 {
-    overflow: hidden;
+    /* overflow: hidden; */
+    overflow-x: hidden;
     font-family: "Orbitron", sans-serif;
-  font-optical-sizing: auto;
+    font-optical-sizing: auto;
 }
 
 .webgl
 {
-    position: fixed;
+    /* position: fixed; */
     top: 0;
     left: 0;
     outline: none;
@@ -34,4 +35,16 @@ body
             font-size: 4rem;
         }
     }
+}
+
+section {
+    height: 100vh;
+    background-color: #3e4b5f;
+    color: #ffeded;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+.newSect {
+    padding: 1rem;
 }
