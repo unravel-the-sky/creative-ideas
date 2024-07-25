@@ -5,8 +5,11 @@ import gsap from 'gsap'
 import {GLTFLoader} from 'three/examples/jsm/loaders/GLTFLoader.js'
 import * as CANNON from 'cannon-es'
 import CannonDebugger from 'cannon-es-debugger';
+import {RGBELoader} from 'three/examples/jsm/loaders/RGBELoader.js'
+
 
 const gltfLoader = new GLTFLoader();
+const rgbeLoader = new RGBELoader()
 
 const fishUrlList = [
     '/models/nemo.glb',
@@ -78,12 +81,9 @@ gui.add(params, 'cameraPos').min(0).max(200).step(0.01).onChange((val) => {
 gui.add(params, 'zPosition').min(-50).max(0).step(0.01).onChange((val) => {
     params.zPosition = val;
 })
-gui.add(params, 'addRandomFish').onFinishChange(() => {
-    console.log('clicked here')
-})
-gui.add(params, 'randomPos').onFinishChange(() => {
-    console.log('clicked here')
-})
+// gui.add(params, 'randomPos').onFinishChange(() => {
+//     console.log('clicked here')
+// })
 gui.add(params, 'fishGroupX').min(-30).max(30).step(0.1).onChange(() => {
     fishesGroup.position.x = params.fishGroupX
 })
@@ -99,13 +99,36 @@ const canvas = document.querySelector('canvas.webgl')
 
 // Scene
 const scene = new THREE.Scene()
-scene.background = new THREE.Color(params.background)
+scene.background += new THREE.Color(params.background)
 
 /**
  * Textures
  */
 const textureLoader = new THREE.TextureLoader()
 const texture = textureLoader.load('/textures/particles/8.png')
+
+gui.add(scene.backgroundRotation, 'y').min(0).max(Math.PI * 2).step(0.001).name('backgroundRotY')
+gui.add(scene.environmentRotation, 'y').min(0).max(Math.PI * 2).step(0.001).name('envRotY')
+gui.add(scene, 'environmentIntensity').min(0).max(20).step(0.001)
+gui.add(scene, 'backgroundBlurriness').min(0).max(1).step(0.001)
+gui.add(scene, 'backgroundIntensity').min(0).max(10).step(0.001)
+
+gui.add(params, 'addRandomFish').onFinishChange(() => {
+    console.log('clicked here')
+})
+
+scene.backgroundBlurriness = 0.3
+
+/**
+ * Env maps
+ */
+rgbeLoader.load('/envMaps/kloofendal_43d_clear_puresky_2k.hdr', (environmentMap) => {
+    environmentMap.mapping = THREE.EquirectangularReflectionMapping;
+
+    scene.background = environmentMap;
+    scene.environment = environmentMap;
+    console.log(environmentMap)
+})
 
 /**
  * Load models
@@ -448,6 +471,9 @@ const tick = () =>
 
     // world.step(1/60, deltaTime, 3);
     world.fixedStep()
+
+    scene.environmentRotation.y += deltaTime
+    scene.backgroundRotation.y += deltaTime * 0.01
 
     if (fishesList.length > 0) {
         fishesList.forEach(fish => {
