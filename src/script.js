@@ -17,6 +17,9 @@ const fishUrlList = [
     '/models/blueFish.glb',
     '/models/puffer.glb',
     '/models/bigFish.glb',
+    '/models/redSnapper.glb',
+    '/models/cardinalFish.glb',
+    '/models/flatFish.glb',
 ]
 
 let addedList = []
