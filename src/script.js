@@ -359,7 +359,7 @@ const moveBodyToTarget = (body, targetPos) => {
     // direction.z = 0;
     const distance = direction.length();
 
-    console.log(distance)
+    // console.log(distance)
 
     if (distance > 0.1) {
         let maxVel = distance < 5 ? 2 : params.maxVelocity
