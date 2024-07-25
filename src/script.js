@@ -33,6 +33,7 @@ defaultMaterial.restitution = 0.9;
 /**
  * Base
  */
+
 const params = {
     mainColor: '#1e665a',
     background: '#5199db',
@@ -46,7 +47,9 @@ const params = {
     },
     randomPos: () => {
         randomPos()
-    }
+    },
+    forceIntensity: 80,
+    maxVelocity: 0.6,
 };
 
 
@@ -88,6 +91,8 @@ gui.add(params, 'fishGroupX').min(-30).max(30).step(0.1).onChange(() => {
 //     // cube.position.x = params.cubeX
 //     test.position.x = params.cubeX
 // })
+gui.add(params, 'forceIntensity').min(1).max(100).step(0.1)
+gui.add(params, 'maxVelocity').min(0).max(5).step(0.1)
 
 // Canvas
 const canvas = document.querySelector('canvas.webgl')
@@ -347,8 +352,6 @@ window.addEventListener('mousemove', (event) => {
     }
 })
 
-const forceIntensity = 50;
-const maxVel = 1;
 const moveBodyToTarget = (body, targetPos) => {
     // Compute direction to target
     // var direction = new CANNON.Vec3();
@@ -356,14 +359,16 @@ const moveBodyToTarget = (body, targetPos) => {
     // direction.z = 0;
     const distance = direction.length();
 
-    // console.log(distance)
+    console.log(distance)
 
     if (distance > 0.1) {
+        let maxVel = distance < 5 ? 2 : params.maxVelocity
         direction.normalize();
         // const force = direction.(forceIntensity,body.velocity);
+        
         body.velocity.set(Math.min(maxVel, body.velocity.x),Math.min(maxVel, body.velocity.y),Math.min(maxVel, body.velocity.z))
         body.angularVelocity.set(Math.min(maxVel, body.velocity.x),Math.min(maxVel, body.velocity.y),Math.min(maxVel, body.velocity.z))
-        const force = direction.scale(forceIntensity);
+        const force = direction.scale(params.forceIntensity);
         body.applyForce(force, body.position)
     } else {
         body.velocity.set(0, 0, 0)
@@ -371,7 +376,7 @@ const moveBodyToTarget = (body, targetPos) => {
     }
 }
 
-canvas.addEventListener('click', (event) => {
+canvas.addEventListener('mousemove', (event) => {
     cursor.x = ((event.clientX / sizes.width) * 2 - 1);
     cursor.y = (((event.clientY / sizes.height) * 2 - 1) * -1) 
 
