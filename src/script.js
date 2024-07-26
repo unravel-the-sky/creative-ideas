@@ -9,7 +9,8 @@ import {RGBELoader} from 'three/examples/jsm/loaders/RGBELoader.js'
 
 
 const gltfLoader = new GLTFLoader();
-const rgbeLoader = new RGBELoader()
+const rgbeLoader = new RGBELoader();
+const cubeTextureLoader = new THREE.CubeTextureLoader();
 
 const fishUrlList = [
     '/models/nemo.glb',
@@ -102,13 +103,13 @@ const canvas = document.querySelector('canvas.webgl')
 
 // Scene
 const scene = new THREE.Scene()
-scene.background += new THREE.Color(params.background)
+// scene.background += new THREE.Color(params.background)
 
 /**
  * Textures
  */
 const textureLoader = new THREE.TextureLoader()
-const texture = textureLoader.load('/textures/particles/8.png')
+const texture = textureLoader.load('/textures/particles/4.png')
 
 gui.add(scene.backgroundRotation, 'y').min(0).max(Math.PI * 2).step(0.001).name('backgroundRotY')
 gui.add(scene.environmentRotation, 'y').min(0).max(Math.PI * 2).step(0.001).name('envRotY')
@@ -131,21 +132,25 @@ scene.backgroundBlurriness = 0.3
 /**
  * Env maps
  */
-rgbeLoader.load('/envMaps/kloofendal_43d_clear_puresky_2k.hdr', (environmentMap) => {
-    environmentMap.mapping = THREE.EquirectangularReflectionMapping;
 
-    scene.background = environmentMap;
-    scene.environment = environmentMap;
-    console.log(environmentMap)
-})
+const environmentMap = cubeTextureLoader.load([
+    '/envMaps/split/nx.png',
+    '/envMaps/split/ny.png',
+    '/envMaps/split/nz.png',
+    '/envMaps/split/px.png',
+    '/envMaps/split/py.png',
+    '/envMaps/split/pz.png',
+])
+
+scene.background = environmentMap;
+scene.environment = environmentMap;
+console.log(environmentMap)
 
 /**
  * Load models
  */
 const fishesList = []
 const fishesGroup = new THREE.Group();
-
-let boundingBox = null;
 
 const addFish = (url) => {
     gltfLoader.load(url, 
@@ -208,27 +213,6 @@ const addFish = (url) => {
 }
 addFish(fishUrlList[0])
 
-/**
- * Test cube
- */
-const cube = new THREE.Mesh(
-    new THREE.BoxGeometry(1, 1, 1),
-    material
-)
-cube.position.set(0, 0, -10)
-// cube.geometry.computeBoundingBox()
-
-const cube2 = new THREE.Mesh(
-    new THREE.BoxGeometry(1, 2, 1),
-    material
-)
-cube2.position.set(-2, 4, -3)
-// cube.visible = false;
-const test = new THREE.Group()
-test.add(cube, cube2)
-// scene.add(test)
-// scene.add(cube)
-
 const torus = new THREE.Mesh(
     new THREE.TorusGeometry(0.9),
     material
@@ -237,7 +221,7 @@ torus.position.set(-3, 0, 0)
 torus.scale.set(0.5, 0.5, 0.5)
 // scene.add(torus)
 
-const numParticles = 300;
+const numParticles = 2000;
 const rangeParticles = params.cameraPos * 2;
 const particlesPos = new Float32Array(numParticles * 3)
 for(let i = 0; i < numParticles * 3 ; i++) {
@@ -374,7 +358,7 @@ const moveBodyToTarget = (fish, targetPos) => {
 
     // console.log(distance)
     movingToTarget = true;
-    const threshold = Math.min(fishesList.length * 0.5, 3);
+    const threshold = Math.min(fishesList.length * 0.5, 5);
 
     if (distance > threshold && movingToTarget === true) {
         
