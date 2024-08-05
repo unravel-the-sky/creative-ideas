@@ -12,6 +12,8 @@ const gltfLoader = new GLTFLoader();
 const rgbeLoader = new RGBELoader();
 const cubeTextureLoader = new THREE.CubeTextureLoader();
 
+const MAX_NUMBER_OF_FISHES = 10;
+
 const fishUrlList = [
     '/models/nemo.glb',
     '/models/anglerFish.glb',
@@ -42,15 +44,17 @@ defaultMaterial.restitution = 0.9;
  */
 
 const params = {
-    mainColor: '#1e665a',
+    mainColor: '#d6e3f0',
     background: '#5199db',
     cameraPos: 20,
     cubeX: 0,
     fishGroupX: 0,
     zPosition: -10,
     addRandomFish: () => {
-        const url = fishUrlList[Math.floor(Math.random() * fishUrlList.length)];
-        addFish(url)
+        if (fishesList.length < MAX_NUMBER_OF_FISHES) {
+            const url = fishUrlList[Math.floor(Math.random() * fishUrlList.length)];
+            addFish(url)
+        }
     },
     randomPos: () => {
         randomPos()
@@ -66,7 +70,7 @@ const material = new THREE.MeshStandardMaterial(
     {
         color: params.mainColor,
         transparent: true,
-        opacity: 0.5
+        opacity: 0.3
     }
 )
 
@@ -127,7 +131,8 @@ gui.add(params, 'addRandomFish').onFinishChange(() => {
     console.log('clicked here')
 })
 
-scene.backgroundBlurriness = 0.3
+scene.backgroundBlurriness = 0.8
+scene.backgroundRotation.y = 4.44;
 
 /**
  * Env maps
@@ -160,7 +165,9 @@ const addFish = (url) => {
                 mixer: new THREE.AnimationMixer(glb.scene),
                 boundingBox: null,
                 body: null,
-                movingToTarget: false
+                movingToTarget: false,
+                bubbles: [],
+                elapsedTime: clock.getElapsedTime()
             }
             console.log('calculating fish sin bounding box')
             fish.model.updateMatrixWorld(true)
@@ -194,6 +201,22 @@ const addFish = (url) => {
 
             fish.boundingBox = bbCube;
 
+            const fishBubbles = [];
+            const bubbleCount = Math.round(Math.random() * 10);
+
+            for (let i = 0 ; i < bubbleCount ; i++) {
+                const fishBubble = new THREE.Mesh(
+                    new THREE.SphereGeometry(1, 12, 12),
+                    material
+                )
+                fishBubble.position.set(center.x - size, center.y, -12);
+                fishBubble.name = `fish_${fishesList.length-1}_bubble_${i}`
+                fishBubble.scale.setScalar(Math.min(Math.random(), size * 0.1))
+                fish.elapsedTime = clock.getElapsedTime()
+    
+                fish.bubbles.push(fishBubble)
+                scene.add(fishBubble)
+            }
 
             fish.model.position.set(posX, posY, -200)
             scene.add(fish.model)
@@ -427,7 +450,6 @@ const tick = () =>
     const deltaTime = elapsedTime - currentTime;
     currentTime = elapsedTime;
 
-
     // world.step(1/60, deltaTime, 3);
     world.fixedStep()
 
@@ -445,6 +467,17 @@ const tick = () =>
             fish.mixer.update(deltaTime)
             fish.model.position.copy(fish.body.position)
             fish.boundingBox.position.copy(fish.body.position)
+            fish.bubbles.forEach((bubble, index) => {
+                bubble.position.set(fish.body.position.x, bubble.position.y, fish.body.position.z)
+                if (bubble.position.y > (100 + Math.random() * 10)) {
+                    bubble.position.y = fish.body.position.y
+                    fish.elapsedTime = currentTime;
+                } else {
+                    bubble.position.y += (elapsedTime - fish.elapsedTime) * 0.08 + Math.sin(Math.random() * 0.1)
+                    bubble.position.x = fish.body.position.x + Math.sin(elapsedTime + 0.5) * 0.9
+                }
+            });
+            // console.log(fish.bubble.position.y)
             // fish.model.quaternion.copy(fish.body.quaternion)
         });
     }
